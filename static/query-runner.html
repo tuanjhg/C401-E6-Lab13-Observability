@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Query Runner</title>
+  <style>
+    :root {
+      --bg: #f7f8fb;
+      --panel: #ffffff;
+      --text: #162236;
+      --muted: #64748b;
+      --border: #d9e2ef;
+      --accent: #0f766e;
+      --accent-2: #1d4ed8;
+      --danger: #b91c1c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--text);
+      background: linear-gradient(180deg, #eef3ff 0%, var(--bg) 40%);
+    }
+    .wrap {
+      max-width: 1200px;
+      margin: 24px auto;
+      padding: 0 16px 24px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 14px;
+      box-shadow: 0 5px 18px rgba(0,0,0,0.04);
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 24px;
+      letter-spacing: 0.2px;
+    }
+    p {
+      margin: 6px 0;
+      color: var(--muted);
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    button, select, input[type="number"], input[type="text"] {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      padding: 8px 12px;
+      font-size: 14px;
+      color: var(--text);
+    }
+    button {
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    button.secondary { background: var(--accent-2); color: #fff; border-color: var(--accent-2); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .kpi {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .kpi .item {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: #fcfdff;
+    }
+    .kpi .label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+    .kpi .value {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .status {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 8px;
+      min-height: 18px;
+    }
+    .status.error { color: var(--danger); }
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      max-height: 420px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      min-width: 980px;
+      background: #fff;
+    }
+    th, td {
+      border-bottom: 1px solid #eef2f8;
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 13px;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      background: #f8fbff;
+      z-index: 1;
+      color: #334155;
+    }
+    .ok { color: #15803d; font-weight: 600; }
+    .bad { color: var(--danger); font-weight: 600; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .muted { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>JSONL Query Runner</h1>
+      <p>Import a <span class="mono">.jsonl</span> file, run all queries to <span class="mono">/chat</span>, then export run results.</p>
+      <div class="row">
+        <input id="fileInput" type="file" accept=".jsonl" />
+        <label for="mode" class="muted">Mode</label>
+        <select id="mode">
+          <option value="sequential">Sequential</option>
+          <option value="concurrent">Concurrent</option>
+        </select>
+        <label for="concurrency" class="muted">Concurrency</label>
+        <input id="concurrency" type="number" min="1" max="20" value="5" style="width:80px;" />
+        <label for="baseUrl" class="muted">Base URL</label>
+        <input id="baseUrl" type="text" value="http://127.0.0.1:8000" style="min-width:220px;" />
+        <button id="runBtn" class="primary" disabled>Run</button>
+        <button id="stopBtn">Stop</button>
+        <button id="exportBtn" class="secondary" disabled>Export Results</button>
+      </div>
+      <div id="status" class="status">No file loaded.</div>
+      <div class="kpi">
+        <div class="item"><div class="label">Loaded Queries</div><div id="kpiLoaded" class="value">0</div></div>
+        <div class="item"><div class="label">Completed</div><div id="kpiDone" class="value">0</div></div>
+        <div class="item"><div class="label">Success</div><div id="kpiOk" class="value">0</div></div>
+        <div class="item"><div class="label">Failed</div><div id="kpiFail" class="value">0</div></div>
+        <div class="item"><div class="label">Avg Latency (ms)</div><div id="kpiLatency" class="value">0</div></div>
+        <div class="item"><div class="label">Total Cost (USD)</div><div id="kpiCost" class="value">0</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Status</th>
+              <th>Feature</th>
+              <th>Session</th>
+              <th>Correlation ID</th>
+              <th>Latency</th>
+              <th>Tokens (in/out)</th>
+              <th>Cost</th>
+              <th>Answer Preview</th>
+              <th>Error</th>
+            </tr>
+          </thead>
+          <tbody id="resultBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const DEFAULTS = {
+      student_id: "std_demo_001",
+      campus: "vsc_times_city",
+      grade: "grade_3",
+      feature: "qa"
+    };
+
+    const state = {
+      queries: [],
+      results: [],
+      running: false,
+      stopRequested: false
+    };
+
+    const fileInput = document.getElementById("fileInput");
+    const runBtn = document.getElementById("runBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const exportBtn = document.getElementById("exportBtn");
+    const statusEl = document.getElementById("status");
+    const modeEl = document.getElementById("mode");
+    const concurrencyEl = document.getElementById("concurrency");
+    const baseUrlEl = document.getElementById("baseUrl");
+    const resultBody = document.getElementById("resultBody");
+
+    const kpiLoaded = document.getElementById("kpiLoaded");
+    const kpiDone = document.getElementById("kpiDone");
+    const kpiOk = document.getElementById("kpiOk");
+    const kpiFail = document.getElementById("kpiFail");
+    const kpiLatency = document.getElementById("kpiLatency");
+    const kpiCost = document.getElementById("kpiCost");
+
+    function setStatus(text, isError = false) {
+      statusEl.textContent = text;
+      statusEl.className = isError ? "status error" : "status";
+    }
+
+    function safeText(value) {
+      return String(value ?? "");
+    }
+
+    function preview(text, max = 80) {
+      const value = safeText(text).replace(/\s+/g, " ").trim();
+      return value.length > max ? value.slice(0, max) + "..." : value;
+    }
+
+    function normalizeQuery(raw, idx) {
+      const q = { ...raw };
+      q.user_id = q.user_id || `user_${idx + 1}`;
+      q.session_id = q.session_id || `session_${idx + 1}`;
+      q.message = safeText(q.message);
+      q.feature = q.feature || DEFAULTS.feature;
+      q.student_id = q.student_id || DEFAULTS.student_id;
+      q.campus = q.campus || DEFAULTS.campus;
+      q.grade = q.grade || DEFAULTS.grade;
+      delete q.timestamp;
+      return q;
+    }
+
+    function updateKpis() {
+      const done = state.results.length;
+      const okCount = state.results.filter(r => r.status_code >= 200 && r.status_code < 300).length;
+      const failCount = done - okCount;
+      const latencyValues = state.results.map(r => Number(r.latency_ms || 0)).filter(n => n > 0);
+      const avgLatency = latencyValues.length
+        ? Math.round(latencyValues.reduce((sum, n) => sum + n, 0) / latencyValues.length)
+        : 0;
+      const totalCost = state.results.reduce((sum, r) => sum + Number(r.cost_usd || 0), 0);
+
+      kpiLoaded.textContent = String(state.queries.length);
+      kpiDone.textContent = String(done);
+      kpiOk.textContent = String(okCount);
+      kpiFail.textContent = String(failCount);
+      kpiLatency.textContent = String(avgLatency);
+      kpiCost.textContent = totalCost.toFixed(4);
+    }
+
+    function renderRow(index, result) {
+      const tr = document.createElement("tr");
+      const success = result.status_code >= 200 && result.status_code < 300;
+      tr.innerHTML = `
+        <td>${index + 1}</td>
+        <td class="${success ? "ok" : "bad"}">${result.status_code}</td>
+        <td>${safeText(result.request?.feature)}</td>
+        <td class="mono">${safeText(result.request?.session_id)}</td>
+        <td class="mono">${safeText(result.correlation_id)}</td>
+        <td>${safeText(result.latency_ms)}</td>
+        <td>${safeText(result.tokens_in)}/${safeText(result.tokens_out)}</td>
+        <td>${safeText(result.cost_usd)}</td>
+        <td>${preview(result.answer_preview)}</td>
+        <td>${preview(result.error || "")}</td>
+      `;
+      resultBody.appendChild(tr);
+    }
+
+    function appendResult(result) {
+      state.results.push(result);
+      renderRow(state.results.length - 1, result);
+      updateKpis();
+    }
+
+    function resetRunState() {
+      state.results = [];
+      state.stopRequested = false;
+      resultBody.innerHTML = "";
+      updateKpis();
+      exportBtn.disabled = true;
+    }
+
+    async function sendOne(query, index) {
+      const startedAt = Date.now();
+      const base = baseUrlEl.value.replace(/\/+$/, "");
+      const endpoint = `${base}/chat`;
+      try {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(query)
+        });
+        const text = await res.text();
+        let payload = {};
+        try { payload = JSON.parse(text); } catch (_) {}
+        const elapsed = Date.now() - startedAt;
+        return {
+          index,
+          request: query,
+          status_code: res.status,
+          correlation_id: payload.correlation_id || "",
+          latency_ms: payload.latency_ms ?? elapsed,
+          tokens_in: payload.tokens_in ?? "",
+          tokens_out: payload.tokens_out ?? "",
+          cost_usd: payload.cost_usd ?? "",
+          answer_preview: payload.answer || "",
+          error: payload.detail || (res.ok ? "" : text),
+          ts: new Date().toISOString()
+        };
+      } catch (error) {
+        return {
+          index,
+          request: query,
+          status_code: 0,
+          correlation_id: "",
+          latency_ms: Date.now() - startedAt,
+          tokens_in: "",
+          tokens_out: "",
+          cost_usd: "",
+          answer_preview: "",
+          error: String(error),
+          ts: new Date().toISOString()
+        };
+      }
+    }
+
+    async function runSequential() {
+      for (let i = 0; i < state.queries.length; i += 1) {
+        if (state.stopRequested) break;
+        const result = await sendOne(state.queries[i], i);
+        appendResult(result);
+        setStatus(`Running sequential: ${state.results.length}/${state.queries.length}`);
+      }
+    }
+
+    async function runConcurrent(limit) {
+      let pointer = 0;
+      const workers = Array.from({ length: limit }, async () => {
+        while (true) {
+          if (state.stopRequested) return;
+          const current = pointer;
+          pointer += 1;
+          if (current >= state.queries.length) return;
+          const result = await sendOne(state.queries[current], current);
+          appendResult(result);
+          setStatus(`Running concurrent: ${state.results.length}/${state.queries.length}`);
+        }
+      });
+      await Promise.all(workers);
+    }
+
+    function exportResults() {
+      const lines = state.results.map(item => JSON.stringify(item)).join("\n");
+      const blob = new Blob([lines], { type: "application/jsonl" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      a.href = url;
+      a.download = `results-${timestamp}.jsonl`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    fileInput.addEventListener("change", async (event) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      try {
+        const content = await file.text();
+        const lines = content.split(/\r?\n/).filter(line => line.trim().length > 0);
+        const parsed = [];
+        lines.forEach((line, idx) => {
+          try {
+            parsed.push(normalizeQuery(JSON.parse(line), idx));
+          } catch (error) {
+            throw new Error(`Invalid JSON at line ${idx + 1}: ${error}`);
+          }
+        });
+        state.queries = parsed;
+        resetRunState();
+        runBtn.disabled = parsed.length === 0;
+        setStatus(`Loaded ${parsed.length} queries. Ready to run.`);
+        updateKpis();
+      } catch (error) {
+        state.queries = [];
+        runBtn.disabled = true;
+        setStatus(String(error), true);
+      }
+    });
+
+    runBtn.addEventListener("click", async () => {
+      if (state.running || state.queries.length === 0) return;
+      state.running = true;
+      state.stopRequested = false;
+      runBtn.disabled = true;
+      exportBtn.disabled = true;
+      setStatus("Run started...");
+      try {
+        if (modeEl.value === "concurrent") {
+          const limit = Math.max(1, Math.min(20, Number(concurrencyEl.value) || 1));
+          await runConcurrent(limit);
+        } else {
+          await runSequential();
+        }
+        const done = state.results.length;
+        setStatus(state.stopRequested
+          ? `Stopped at ${done}/${state.queries.length}.`
+          : `Completed ${done}/${state.queries.length}.`);
+      } finally {
+        state.running = false;
+        runBtn.disabled = state.queries.length === 0;
+        exportBtn.disabled = state.results.length === 0;
+      }
+    });
+
+    stopBtn.addEventListener("click", () => {
+      state.stopRequested = true;
+      setStatus("Stop requested. Finishing in-flight requests...");
+    });
+
+    exportBtn.addEventListener("click", exportResults);
+    updateKpis();
+  </script>
+</body>
+</html>
