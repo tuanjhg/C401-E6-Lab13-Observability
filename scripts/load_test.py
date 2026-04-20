@@ -11,6 +11,11 @@ QUERIES = Path("data/sample_queries.jsonl")
 
 
 def send_request(client: httpx.Client, payload: dict) -> None:
+    # Ensure mandatory fields are present
+    payload.setdefault("campus", "vsc_times_city")
+    payload.setdefault("grade", "grade_1")
+    payload.setdefault("student_id", f"std_{payload.get('user_id', 'unknown')}")
+    
     try:
         start = time.perf_counter()
         r = client.post(f"{BASE_URL}/chat", json=payload)
@@ -23,9 +28,12 @@ def send_request(client: httpx.Client, payload: dict) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--concurrency", type=int, default=1, help="Number of concurrent requests")
+    parser.add_argument("--requests", type=int, default=None, help="Limit number of total requests")
     args = parser.parse_args()
 
     lines = [line for line in QUERIES.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if args.requests:
+        lines = lines[:args.requests]
     
     with httpx.Client(timeout=30.0) as client:
         if args.concurrency > 1:

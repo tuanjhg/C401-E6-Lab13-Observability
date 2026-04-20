@@ -21,7 +21,8 @@ from .metrics import record_error, snapshot
 from .middleware import CorrelationIdMiddleware
 from .pii import hash_user_id, summarize_text
 from .schemas import ChatRequest, ChatResponse
-from .tracing import tracing_enabled, langfuse_context
+from .tracing import tracing_enabled
+from langfuse import get_client
 
 configure_logging()
 log = get_logger()
@@ -112,7 +113,7 @@ def chat(request: Request, body: ChatRequest) -> ChatResponse:
             payload={"detail": str(exc), "message_preview": summarize_text(body.message)},
         )
         try:
-            langfuse_context.update_current_trace(level="ERROR", status_message=str(exc))
+            get_client().update_current_span(level="ERROR", status_message=str(exc))
         except Exception:
             pass
         raise HTTPException(status_code=500, detail=error_type) from exc

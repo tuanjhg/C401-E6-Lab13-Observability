@@ -53,64 +53,63 @@ class LabAgent:
             self._input_guards(message)
             self._agent_router(message)
         
-        docs = retrieve(message)
-        prompt = f"Feature={feature}\nDocs={docs}\nQuestion={message}"
-        response = self.llm.generate(prompt)
-        
-        answer = self._post_process(response.text)
-        quality_score = self._heuristic_quality(message, answer, docs)
-        
-        latency_ms = int((time.perf_counter() - started) * 1000)
-        cost_usd = self._estimate_cost(response.usage.input_tokens, response.usage.output_tokens)
-        
-        # Mock Severity for dashboard
-        severities = ["Critical", "High", "Normal", "Low"]
-        weights = [0.1, 0.2, 0.5, 0.2]
-        severity = random.choices(severities, weights=weights)[0]
-        
-        tags = ["lab", feature, self.model, f"severity:{severity}"]
-        if latency_ms > 3000:
-            tags.append("SLO_BREACH:latency")
-        if quality_score < 0.75:
-            tags.append("SLO_BREACH:quality")
+            docs = retrieve(message)
+            prompt = f"Feature={feature}\nDocs={docs}\nQuestion={message}"
+            response = self.llm.generate(prompt)
+            
+            answer = self._post_process(response.text)
+            quality_score = self._heuristic_quality(message, answer, docs)
+            
+            latency_ms = int((time.perf_counter() - started) * 1000)
+            cost_usd = self._estimate_cost(response.usage.input_tokens, response.usage.output_tokens)
+            
+            # Mock Severity for dashboard
+            severities = ["Critical", "High", "Normal", "Low"]
+            weights = [0.1, 0.2, 0.5, 0.2]
+            severity = random.choices(severities, weights=weights)[0]
+            
+            tags = ["lab", feature, self.model, f"severity:{severity}"]
+            if latency_ms > 3000:
+                tags.append("SLO_BREACH:latency")
+            if quality_score < 0.75:
+                tags.append("SLO_BREACH:quality")
 
-        langfuse_context.update_current_trace(
-            user_id=hash_user_id(user_id),
-            session_id=session_id,
-            tags=tags,
-        )
-        langfuse_context.update_current_observation(
-            metadata={"doc_count": len(docs), "query_preview": summarize_text(message), "severity": severity},
-            usage_details={"input": response.usage.input_tokens, "output": response.usage.output_tokens},
-        )
-        langfuse_context.score_current_trace(
-            name="quality_score_avg",
-            value=quality_score
-        )
-        try:
-            get_client().update_current_span(
-                metadata={"doc_count": len(docs), "query_preview": summarize_text(message)}
+            # Update trace with tags and final output
+            try:
+                client = get_client()
+                # Update current trace level info
+                client.update_current_span(
+                    metadata={
+                        "doc_count": len(docs), 
+                        "query_preview": summarize_text(message),
+                        "severity": severity
+                    }
+                )
+                # Score the trace for quality
+                client.score_current_trace(
+                    name="quality_score_avg",
+                    value=quality_score
+                )
+            except Exception:
+                pass
+
+            metrics.record_request(
+                latency_ms=latency_ms,
+                cost_usd=cost_usd,
+                tokens_in=response.usage.input_tokens,
+                tokens_out=response.usage.output_tokens,
+                quality_score=quality_score,
+                severity=severity
             )
-        except Exception:
-            pass
 
-        metrics.record_request(
-            latency_ms=latency_ms,
-            cost_usd=cost_usd,
-            tokens_in=response.usage.input_tokens,
-            tokens_out=response.usage.output_tokens,
-            quality_score=quality_score,
-            severity=severity
-        )
-
-        return AgentResult(
-            answer=answer,
-            latency_ms=latency_ms,
-            tokens_in=response.usage.input_tokens,
-            tokens_out=response.usage.output_tokens,
-            cost_usd=cost_usd,
-            quality_score=quality_score,
-        )
+            return AgentResult(
+                answer=answer,
+                latency_ms=latency_ms,
+                tokens_in=response.usage.input_tokens,
+                tokens_out=response.usage.output_tokens,
+                cost_usd=cost_usd,
+                quality_score=quality_score,
+            )
 
     @observe(name="Estimate Cost")
     def _estimate_cost(self, tokens_in: int, tokens_out: int) -> float:
