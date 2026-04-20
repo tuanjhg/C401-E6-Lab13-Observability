@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import os
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -43,7 +46,7 @@ async def metrics() -> dict:
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: Request, body: ChatRequest) -> ChatResponse:
+def chat(request: Request, body: ChatRequest) -> ChatResponse:
     # TODO: Enrich logs with request context (user_id_hash, session_id, feature, model, env)
     bind_contextvars(
         user_id_hash=hash_user_id(body.user_id),
