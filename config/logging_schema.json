@@ -13,6 +13,7 @@
     "session_id": {"type": ["string", "null"]},
     "feature": {"type": ["string", "null"]},
     "model": {"type": ["string", "null"]},
+    "student_id_hash": {"type": ["string", "null"]},
     "latency_ms": {"type": ["integer", "null"]},
     "tokens_in": {"type": ["integer", "null"]},
     "tokens_out": {"type": ["integer", "null"]},

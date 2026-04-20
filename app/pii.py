@@ -44,5 +44,5 @@ def summarize_text(text: str, max_len: int = 80) -> str:
     return safe[:max_len] + ("..." if len(safe) > max_len else "")
 
 
-def hash_user_id(user_id: str) -> str:
-    return hashlib.sha256(user_id.encode("utf-8")).hexdigest()[:12]
+def hash_id(id: str) -> str:
+    return hashlib.sha256(id.encode("utf-8")).hexdigest()[:12]

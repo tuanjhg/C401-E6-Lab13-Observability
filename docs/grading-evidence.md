@@ -28,4 +28,4 @@
 - AVAILABLE: `image/step06_langfuse_trace_list.png`
 - AVAILABLE: `image/step07_langfuse_trace_waterfall_rag_slow.png`
 - AVAILABLE: `image/step15_dashboard_6_panels_overview.png`
-- PENDING: `image/step16_alert_rules_and_runbook_link.png`
+- AVAILABLE: `image/step16_alert_rules_and_runbook_link.png`

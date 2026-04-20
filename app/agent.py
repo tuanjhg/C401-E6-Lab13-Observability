@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from . import metrics
 from .mock_llm import FakeLLM
 from .mock_rag import retrieve
-from .pii import hash_user_id, summarize_text
+from .pii import hash_id, summarize_text
 from .tracing import observe
 from langfuse import get_client
 
@@ -52,7 +52,7 @@ class LabAgent:
     @observe(name="Total Request")
     def run(self, user_id: str, feature: str, session_id: str, message: str) -> AgentResult:
         with propagate_attributes(
-            user_id=hash_user_id(user_id),
+            user_id=hash_id(user_id),
             session_id=session_id,
             tags=["lab", feature, self.model],
         ):

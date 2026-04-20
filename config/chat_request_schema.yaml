@@ -1,0 +1,30 @@
+chat_request_schema:
+  user_id:
+    type: string
+    description: "Định danh duy nhất của phụ huynh (Ví dụ: parent_nguyen_van_a)"
+    required: true
+  session_id:
+    type: string
+    description: "ID phiên chat để nhóm các câu hỏi liên quan"
+    required: true
+  campus:
+    type: string
+    description: "Cơ sở Vinschool (Ví dụ: vsc_times_city, vsc_the_harmony, vsc_central_park)"
+    default: "vsc_times_city"
+  grade:
+    type: string
+    description: "Khối lớp của học sinh (Ví dụ: grade_1 đến grade_12)"
+    default: "grade_1"
+  student_id:
+    type: string
+    description: "Mã số học sinh để tra cứu thông báo riêng biệt"
+    required: true
+  feature:
+    type: string
+    description: "Tính năng yêu cầu: qa (hỏi đáp), notifications (thông báo), tuition_check (học phí)"
+    default: "qa"
+  message:
+    type: string
+    description: "Nội dung câu hỏi hoặc yêu cầu từ phụ huynh"
+    min_length: 1
+    example: "Lịch nghỉ lễ 30/4 của khối 1 như thế nào?"

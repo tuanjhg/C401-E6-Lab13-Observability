@@ -19,7 +19,7 @@ from .incidents import disable, enable, status
 from .logging_config import configure_logging, get_logger
 from .metrics import record_error, record_request, snapshot
 from .middleware import CorrelationIdMiddleware
-from .pii import hash_user_id, summarize_text
+from .pii import hash_id, summarize_text
 from .schemas import ChatRequest, ChatResponse
 from .tracing import tracing_enabled
 from langfuse import get_client
@@ -63,12 +63,12 @@ async def dashboard_data() -> dict:
 def chat(request: Request, body: ChatRequest) -> ChatResponse:
     # TODO: Enrich logs with request context (user_id_hash, session_id, feature, model, env)
     bind_contextvars(
-        user_id_hash=hash_user_id(body.user_id),
+        user_id_hash=hash_id(body.user_id),
         session_id=body.session_id,
         feature=body.feature,
         campus=body.campus,
         grade=body.grade,
-        student_id=body.student_id,
+        student_id_hash=hash_id(body.student_id),
         model=agent.model,
         env=os.getenv("APP_ENV", "dev")
     )
