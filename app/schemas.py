@@ -7,10 +7,13 @@ from pydantic import BaseModel, Field
 
 
 class ChatRequest(BaseModel):
-    user_id: str = Field(..., examples=["u_team_01"])
-    session_id: str = Field(..., examples=["s_demo_01"])
-    feature: str = Field(default="qa", examples=["qa", "summary"])
-    message: str = Field(..., min_length=1)
+    user_id: str = Field(..., examples=["parent_nguyen_van_a"])
+    session_id: str = Field(..., examples=["s_2024_04_20"])
+    campus: str = Field(default="vsc_times_city", examples=["vsc_times_city", "vsc_the_harmony", "vsc_central_park"])
+    grade: str = Field(default="grade_1", examples=["grade_1", "grade_10"])
+    student_id: str = Field(..., examples=["std_123456"])
+    feature: str = Field(default="qa", examples=["qa", "notifications", "tuition_check"])
+    message: str = Field(..., min_length=1, examples=["Lịch nghỉ lễ 30/4 của khối 1 như thế nào?"])
 
 
 class ChatResponse(BaseModel):
@@ -34,6 +37,8 @@ class LogRecord(BaseModel):
     session_id: str | None = None
     feature: str | None = None
     model: str | None = None
+    campus: str | None = None
+    grade: str | None = None
     latency_ms: int | None = None
     tokens_in: int | None = None
     tokens_out: int | None = None
