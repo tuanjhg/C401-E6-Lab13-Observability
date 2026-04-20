@@ -52,6 +52,7 @@ def snapshot() -> dict:
     now = time.time()
     
     # Calculate current state
+    error_rate = min(100.0, (sum(ERRORS.values()) / max(1, TRAFFIC)) * 100)  # Cap at 100%
     current_state = {
         "timestamp": int(now * 1000),
         "traffic": TRAFFIC,
@@ -65,7 +66,7 @@ def snapshot() -> dict:
         "error_breakdown": dict(ERRORS),
         "severity_counts": dict(SEVERITY_COUNTS),
         "quality_avg": round(mean(QUALITY_SCORES), 4) if QUALITY_SCORES else 0.0,
-        "error_rate": (sum(ERRORS.values()) / max(1, TRAFFIC)) * 100
+        "error_rate": error_rate
     }
     
     # Append to history every 2 seconds roughly
