@@ -3,13 +3,21 @@ from __future__ import annotations
 import time
 import random
 from dataclasses import dataclass
+from contextlib import contextmanager
 
 from . import metrics
 from .mock_llm import FakeLLM
 from .mock_rag import retrieve
 from .pii import hash_user_id, summarize_text
 from .tracing import observe
-from langfuse import propagate_attributes, get_client
+from langfuse import get_client
+
+try:
+    from langfuse import propagate_attributes
+except ImportError:
+    @contextmanager
+    def propagate_attributes(**_: object):
+        yield
 
 
 @dataclass
