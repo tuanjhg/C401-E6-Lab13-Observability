@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import os
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -56,12 +59,15 @@ async def dashboard_data() -> dict:
     return snapshot()
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: Request, body: ChatRequest) -> ChatResponse:
+def chat(request: Request, body: ChatRequest) -> ChatResponse:
     # TODO: Enrich logs with request context (user_id_hash, session_id, feature, model, env)
     bind_contextvars(
         user_id_hash=hash_user_id(body.user_id),
         session_id=body.session_id,
         feature=body.feature,
+        campus=body.campus,
+        grade=body.grade,
+        student_id=body.student_id,
         model=agent.model,
         env=os.getenv("APP_ENV", "dev")
     )
