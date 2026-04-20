@@ -7,7 +7,8 @@ from . import metrics
 from .mock_llm import FakeLLM
 from .mock_rag import retrieve
 from .pii import hash_user_id, summarize_text
-from .tracing import langfuse_context, observe
+from .tracing import observe
+from langfuse import propagate_attributes, get_client
 
 
 @dataclass
@@ -25,25 +26,48 @@ class LabAgent:
         self.model = model
         self.llm = FakeLLM(model=model)
 
-    @observe()
-    def run(self, user_id: str, feature: str, session_id: str, message: str) -> AgentResult:
-        started = time.perf_counter()
-        docs = retrieve(message)
-        prompt = f"Feature={feature}\nDocs={docs}\nQuestion={message}"
-        response = self.llm.generate(prompt)
-        quality_score = self._heuristic_quality(message, response.text, docs)
-        latency_ms = int((time.perf_counter() - started) * 1000)
-        cost_usd = self._estimate_cost(response.usage.input_tokens, response.usage.output_tokens)
+    @observe(name="Input Guards")
+    def _input_guards(self, message: str) -> None:
+        time.sleep(0.02)  # Simulate 20ms safety check
+        # Logic for PII/adversarial check could go here
 
-        langfuse_context.update_current_trace(
+    @observe(name="Agent Router")
+    def _agent_router(self, message: str) -> None:
+        time.sleep(0.05)  # Simulate 50ms intent classification
+
+    @observe(name="Post-process")
+    def _post_process(self, response_text: str) -> str:
+        time.sleep(0.03)  # Simulate 30ms formatting
+        return response_text
+
+    @observe(name="Total Request")
+    def run(self, user_id: str, feature: str, session_id: str, message: str) -> AgentResult:
+        with propagate_attributes(
             user_id=hash_user_id(user_id),
             session_id=session_id,
             tags=["lab", feature, self.model],
-        )
-        langfuse_context.update_current_observation(
-            metadata={"doc_count": len(docs), "query_preview": summarize_text(message)},
-            usage_details={"input": response.usage.input_tokens, "output": response.usage.output_tokens},
-        )
+        ):
+            started = time.perf_counter()
+            
+            self._input_guards(message)
+            self._agent_router(message)
+        
+        docs = retrieve(message)
+        prompt = f"Feature={feature}\nDocs={docs}\nQuestion={message}"
+        response = self.llm.generate(prompt)
+        
+        answer = self._post_process(response.text)
+        quality_score = self._heuristic_quality(message, answer, docs)
+        
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        cost_usd = self._estimate_cost(response.usage.input_tokens, response.usage.output_tokens)
+
+        try:
+            get_client().update_current_span(
+                metadata={"doc_count": len(docs), "query_preview": summarize_text(message)}
+            )
+        except Exception:
+            pass
 
         metrics.record_request(
             latency_ms=latency_ms,
@@ -54,7 +78,7 @@ class LabAgent:
         )
 
         return AgentResult(
-            answer=response.text,
+            answer=answer,
             latency_ms=latency_ms,
             tokens_in=response.usage.input_tokens,
             tokens_out=response.usage.output_tokens,
@@ -62,11 +86,13 @@ class LabAgent:
             quality_score=quality_score,
         )
 
+    @observe(name="Estimate Cost")
     def _estimate_cost(self, tokens_in: int, tokens_out: int) -> float:
         input_cost = (tokens_in / 1_000_000) * 3
         output_cost = (tokens_out / 1_000_000) * 15
         return round(input_cost + output_cost, 6)
 
+    @observe(name="Heuristic Quality")
     def _heuristic_quality(self, question: str, answer: str, docs: list[str]) -> float:
         score = 0.5
         if docs:
